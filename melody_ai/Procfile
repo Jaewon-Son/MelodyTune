@@ -1,0 +1,2 @@
+# melody_ai/Procfile
+web: python analyzer.py
