@@ -1,5 +1,0 @@
-package com.melodytune.backend.config;
-
-public class WebMvcConfig {
-
-}

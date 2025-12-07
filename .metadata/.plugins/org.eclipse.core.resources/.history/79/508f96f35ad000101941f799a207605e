@@ -1,5 +1,0 @@
-package com.melodytune.backend.dto;
-
-public class StoreDetailResponseDto {
-
-}
