@@ -1,0 +1,2 @@
+# melodytune/Procfile
+web: java -jar target/*.jar
