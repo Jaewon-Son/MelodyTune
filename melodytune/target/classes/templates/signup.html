@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>회원가입 - Melody Tune</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { display: flex; justify-content: center; align-items: center; background: #f0f2f5; }
+        .auth-box { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 350px; text-align: center; }
+        input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .btn-primary { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .check-group { display: flex; align-items: center; margin-bottom: 15px; justify-content: center; font-size: 14px; }
+        .check-group input { width: auto; margin: 0 8px 0 0; }
+        .link { display: block; margin-top: 15px; font-size: 14px; color: #666; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="auth-box">
+        <h2>회원가입</h2>
+        <input type="email" id="email" placeholder="이메일">
+        <input type="password" id="password" placeholder="비밀번호">
+        <input type="text" id="name" placeholder="이름 (또는 업체명)">
+        
+        <div class="check-group">
+            <input type="checkbox" id="businessUser">
+            <label for="businessUser"><strong>업체 회원</strong>으로 가입합니다.</label>
+        </div>
+
+        <button class="btn-primary" onclick="signup()">가입하기</button>
+        <a href="login.html" class="link">이미 계정이 있으신가요? 로그인</a>
+    </div>
+
+    <script>
+        async function signup() {
+            const data = {
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                name: document.getElementById('name').value,
+                businessUser: document.getElementById('businessUser').checked
+            };
+
+            const response = await fetch('/api/auth/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                alert("회원가입 성공! 로그인해주세요.");
+                location.href = 'login.html';
+            } else {
+                alert("가입 실패: " + await response.text());
+            }
+        }
+    </script>
+</body>
+</html>

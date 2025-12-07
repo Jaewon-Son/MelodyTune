@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>로그인 - Melody Tune</title>
+    <link rel="stylesheet" href="style.css"> <style>
+        body { display: flex; justify-content: center; align-items: center; background: #f0f2f5; }
+        .auth-box { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 350px; text-align: center; }
+        .auth-box h2 { margin-bottom: 20px; color: #2c3e50; }
+        input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .btn-primary { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-primary:hover { background: #0056b3; }
+        .link { display: block; margin-top: 15px; font-size: 14px; color: #666; text-decoration: none; }
+        .link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="auth-box">
+        <h2>로그인</h2>
+        <input type="email" id="email" placeholder="이메일">
+        <input type="password" id="password" placeholder="비밀번호">
+        <button class="btn-primary" onclick="login()">로그인</button>
+        <a href="signup.html" class="link">계정이 없으신가요? 회원가입</a>
+        <a href="index.html" class="link">홈으로 돌아가기</a>
+    </div>
+
+    <script>
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            if (response.ok) {
+                location.href = 'main.html'; // 로그인 성공 시 메인으로
+            } else {
+                alert("로그인 실패: " + await response.text());
+            }
+        }
+    </script>
+</body>
+</html>

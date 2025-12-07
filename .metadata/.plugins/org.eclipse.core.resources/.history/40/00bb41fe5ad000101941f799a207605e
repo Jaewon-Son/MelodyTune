@@ -1,0 +1,5 @@
+package com.melodytune.backend.repository;
+
+public interface ProductRepository {
+
+}

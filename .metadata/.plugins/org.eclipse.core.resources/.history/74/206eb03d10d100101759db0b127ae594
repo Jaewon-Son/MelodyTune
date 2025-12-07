@@ -1,0 +1,13 @@
+package com.melodytune.backend.repository;
+
+import com.melodytune.backend.domain.Store;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.lang.reflect.Member;
+import java.util.List;
+import java.util.Optional;
+
+public interface StoreRepository extends JpaRepository<Store, Long> {
+    List<Store> findByRegion(String region);
+    Optional<Store> findByOwner(Member owner);
+}

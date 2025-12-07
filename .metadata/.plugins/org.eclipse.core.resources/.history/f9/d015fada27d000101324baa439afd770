@@ -1,0 +1,673 @@
+const CONFIG = {
+  API_BASE_URL: "/api/stores",
+  MARKER: {
+    DEFAULT: null, // 기본 파란색 핀
+    HIGHLIGHT: {
+      src: "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_red.png",
+      size: new kakao.maps.Size(30, 42),
+    },
+  },
+};
+
+// 네비게이션 데이터
+const NAV_MENU_DATA = [
+  {
+    title: "기타",
+    items: ["어쿠스틱 기타", "일렉 기타", "베이스 기타", "우쿨렐레"],
+  },
+  { title: "드럼", items: ["드럼", "전자드럼", "퍼커션"] },
+  {
+    title: "건반악기",
+    items: ["피아노", "전자피아노", "신디사이저", "오르간"],
+  },
+  {
+    title: "관현악기",
+    items: ["바이올린", "첼로", "비올라", "플루트", "색소폰"],
+  },
+  { title: "음향장비", items: ["마이크", "오디오 인터페이스", "스피커"] },
+];
+
+// 지역 데이터
+const REGIONS_DATA = {
+  서울특별시: {
+    coords: { lat: 37.5665, lng: 126.9779 },
+    gu: {
+      종로구: { lat: 37.5729, lng: 126.9793 },
+      강남구: { lat: 37.5172, lng: 127.0473 },
+      서초구: { lat: 37.4835, lng: 127.0323 },
+    },
+  },
+  경기도: {
+    coords: { lat: 37.4138, lng: 127.5182 },
+    gu: {
+      수원시: { lat: 37.2636, lng: 127.0286 },
+      성남시: { lat: 37.4232, lng: 127.1388 },
+    },
+  },
+  충청남도: {
+    coords: { lat: 36.6595, lng: 126.6735 },
+    gu: { 천안시: { lat: 36.8151, lng: 127.1139 } },
+  },
+};
+
+const AppState = {
+  map: null,
+  markers: [],
+  currentRegion: null,
+  filterInstruments: [],
+  mapClickListener: null, // 업체 등록 시 지도 클릭 이벤트 저장용
+};
+
+// DOM 요소 캐싱
+const DOM = {
+  map: document.getElementById("map"),
+  navMenu: document.getElementById("navMenu"),
+  regionBtn: document.getElementById("headerRegionBtn"),
+  regionDropdown: document.getElementById("regionDropdown"),
+  resultTitle: document.getElementById("resultTitle"),
+  storeList: document.getElementById("storeList"),
+
+  // 리뷰 관련
+  reviewPanel: document.getElementById("review-panel"),
+  reviewStoreName: document.getElementById("reviewStoreName"),
+  closeReviewBtn: document.getElementById("closeReviewBtn"),
+  avgRating: document.getElementById("avgRating"),
+  totalReviews: document.getElementById("totalReviews"),
+  aiSummary: document.getElementById("aiSummary"),
+  reviewList: document.getElementById("reviewList"),
+
+  // 모달 관련
+  registerBtn: document.getElementById("registerStoreBtn"),
+  modalOverlay: document.getElementById("modalOverlay"),
+  modalWrap: document.getElementById("modalWrap"),
+  closeModalBtn: document.querySelector(
+    "#modalWrap button[onclick='hideModal()']"
+  ), // 닫기 버튼
+
+  // 폼 관련
+  form: {
+    name: document.getElementById("storeName"),
+    region: document.getElementById("storeRegion"),
+    lat: document.getElementById("storeLat"),
+    lng: document.getElementById("storeLng"),
+    instruments: document.getElementById("storeInstruments"),
+    submitBtn: document.getElementById("submitStore"),
+    mapSelectBtn: document.getElementById("selectFromMapBtn"),
+  },
+};
+
+// 지도 관리자
+const MapManager = {
+  init() {
+    AppState.map = new kakao.maps.Map(DOM.map, {
+      center: new kakao.maps.LatLng(36.5, 127.8),
+      level: 13,
+    });
+  },
+
+  move(lat, lng, level = null) {
+    const moveLatLon = new kakao.maps.LatLng(lat, lng);
+    AppState.map.panTo(moveLatLon);
+    if (level) AppState.map.setLevel(level);
+  },
+
+  clearMarkers() {
+    AppState.markers.forEach((m) => m.setMap(null));
+    AppState.markers = [];
+  },
+
+  addMarker(lat, lng, title) {
+    const marker = new kakao.maps.Marker({
+      position: new kakao.maps.LatLng(lat, lng),
+      title: title,
+      map: AppState.map,
+    });
+    AppState.markers.push(marker);
+    return marker;
+  },
+
+  highlightMarker(index) {
+    const highlightImage = new kakao.maps.MarkerImage(
+      CONFIG.MARKER.HIGHLIGHT.src,
+      CONFIG.MARKER.HIGHLIGHT.size
+    );
+
+    // 모든 마커 초기화 후 타겟 마커만 이미지 변경
+    AppState.markers.forEach((m) => m.setImage(null));
+    if (AppState.markers[index]) {
+      AppState.markers[index].setImage(highlightImage);
+    }
+  },
+};
+
+// API 서비스
+const APIService = {
+  // 로그인 상태 확인 API
+  async checkSession() {
+    try {
+      const response = await fetch("/api/auth/me");
+      if (response.ok) return await response.json(); // { name: "홍길동", role: "USER" }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // 로그아웃 API
+  async logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    location.reload(); // 새로고침
+  },
+
+  async fetchStores(region, instruments) {
+    const params = new URLSearchParams();
+
+    if (region) params.append("region", region);
+
+    // 데모용: 첫 번째 악기만 필터링 전송 (백엔드 로직에 따라 수정 가능)
+    if (instruments.length === 1) {
+      params.append("instrument", instruments[0]);
+    }
+
+    const url = `${CONFIG.API_BASE_URL}?${params.toString()}`;
+    const response = await fetch(url);
+
+    if (!response.ok) throw new Error("API Fetch Error");
+    return await response.json();
+  },
+
+  async registerStore(storeData) {
+    const response = await fetch(CONFIG.API_BASE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(storeData),
+    });
+
+    if (!response.ok) throw new Error("API Register Error");
+    return response;
+  },
+  // 리뷰 정보 불러오기
+  async fetchStoreReviews(storeId) {
+    const url = `/api/stores/${storeId}/reviews`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(
+        `리뷰를 불러오는 데 실패했습니다. (Store ID: ${storeId})`
+      );
+    }
+    return await response.json();
+  },
+};
+
+// UI 생성
+const UIManager = {
+  // 공통 메뉴 생성 함수 (Factory Pattern)
+  createMenu(targetEl, dataList, options) {
+    dataList.forEach((group) => {
+      let container = targetEl;
+
+      if (options.wrapperClass) {
+        const wrapper = document.createElement("div");
+        wrapper.className = options.wrapperClass;
+        targetEl.appendChild(wrapper);
+        container = wrapper;
+      }
+
+      const titleEl = document.createElement(options.titleTag || "div");
+      titleEl.className = options.titleClass;
+      titleEl.textContent = group.title;
+
+      titleEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (options.onTitleClick) options.onTitleClick(group, e.target);
+      });
+
+      const listContainer = document.createElement("div");
+      listContainer.className = options.listClass;
+
+      group.items.forEach((item) => {
+        const itemEl = document.createElement(options.itemTag || "div");
+        itemEl.className = options.itemClass;
+        itemEl.textContent = item;
+
+        itemEl.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (options.onItemClick) options.onItemClick(item, group);
+        });
+
+        listContainer.appendChild(itemEl);
+      });
+
+      container.appendChild(titleEl);
+      container.appendChild(listContainer);
+    });
+  },
+
+  renderStoreList(stores) {
+    DOM.storeList.innerHTML = "";
+    if (!stores || stores.length === 0) {
+      DOM.storeList.innerHTML =
+        '<p class="result-placeholder">조건에 맞는 악기점이 없습니다.</p>';
+      return;
+    }
+
+    stores.forEach((store, index) => {
+      const item = document.createElement("div");
+      item.className = "store-item";
+      item.innerHTML = `<h4>${store.name}</h4><p>${
+        store.region
+      } | ${store.instruments.join(", ")}</p>`;
+
+      item.addEventListener("click", () => {
+        MapManager.move(store.lat, store.lng, 4);
+        MapManager.highlightMarker(index);
+      });
+
+      DOM.storeList.appendChild(item);
+    });
+  },
+
+  toggleRegionDropdown(show) {
+    DOM.regionDropdown.style.display = show ? "block" : "none";
+  },
+
+  // 모달 제어
+  modal: {
+    show() {
+      DOM.modalOverlay.style.display = "block";
+      DOM.modalWrap.style.display = "block";
+    },
+    hide() {
+      DOM.modalOverlay.style.display = "none";
+      DOM.modalWrap.style.display = "none";
+    },
+    resetForm() {
+      DOM.form.name.value = "";
+      DOM.form.lat.value = "";
+      DOM.form.lng.value = "";
+      DOM.form.instruments.value = "";
+    },
+  },
+  // 리뷰 렌더링
+  renderReviews(reviews) {
+    DOM.reviewList.innerHTML = "";
+    if (!reviews || reviews.length === 0) {
+      DOM.reviewList.innerHTML =
+        '<p class="review-placeholder">아직 등록된 리뷰가 없습니다.</p>';
+      return;
+    }
+
+    reviews.forEach((review) => {
+      const item = document.createElement("div");
+      item.className = "review-item";
+
+      // 날짜 포맷팅 (예: YYYY-MM-DD)
+      const formattedDate = new Date(review.createdAt)
+        .toISOString()
+        .split("T")[0];
+
+      item.innerHTML = `
+            <p class="review-meta">
+                <span style="color:#ffc107; font-weight:bold;">⭐ ${review.rating.toFixed(
+                  1
+                )}</span> | 
+                ${review.userName}님 | 
+                ${formattedDate}
+            </p>
+            <p class="review-text">${review.content}</p>
+        `;
+      DOM.reviewList.appendChild(item);
+    });
+  },
+  //리뷰 패널 제어
+  reviewPanel: {
+    async show(store) {
+      DOM.reviewPanel.style.display = "flex";
+      DOM.reviewStoreName.textContent = store.name;
+      DOM.reviewList.innerHTML =
+        '<p class="review-placeholder">데이터를 불러오는 중...</p>';
+
+      try {
+        // 1. API 호출 (storeId는 store 객체에 있다고 가정)
+        // 백엔드에서 ID를 'id' 필드로 응답한다고 가정합니다.
+        const data = await APIService.fetchStoreReviews(store.id);
+
+        // 2. 상단 요약 정보 업데이트
+        const avgRating = data.averageRating.toFixed(1);
+        DOM.avgRating.textContent = `⭐ ${avgRating}`;
+        DOM.totalReviews.textContent = `(${data.totalReviews}개 리뷰)`;
+
+        // 3. AI 요약 (AI 기능 제외 상태)
+        if (data.aiSummary && data.aiSummary.length > 0) {
+          DOM.aiSummary.innerHTML = `
+                    **AI 리뷰 요약:** ${data.aiSummary.join(" | ")}
+                 `;
+        } else {
+          DOM.aiSummary.innerHTML = `**AI 리뷰 요약:** 요약 데이터가 없습니다.`;
+        }
+
+        // 4. 리뷰 목록 렌더링
+        UIManager.renderReviews(data.reviews);
+      } catch (error) {
+        console.error(error);
+        DOM.reviewList.innerHTML =
+          '<p class="review-placeholder" style="color:red;">리뷰를 불러오는 데 실패했습니다.</p>';
+      }
+    },
+    hide() {
+      DOM.reviewPanel.style.display = "none";
+    },
+  },
+
+  renderStoreList(stores) {
+    DOM.storeList.innerHTML = "";
+    // 리뷰 패널 숨기기
+    UIManager.reviewPanel.hide();
+
+    if (!stores || stores.length === 0) {
+      DOM.storeList.innerHTML =
+        '<p class="result-placeholder">조건에 맞는 악기점이 없습니다.</p>';
+      return;
+    }
+
+    stores.forEach((store, index) => {
+      const item = document.createElement("div");
+      item.className = "store-item";
+      item.innerHTML = `<h4>${store.name}</h4><p>${
+        store.region
+      } | ${store.instruments.join(", ")}</p>`;
+
+      item.addEventListener("click", () => {
+        MapManager.move(store.lat, store.lng, 4);
+        MapManager.highlightMarker(index);
+
+        // 업체 클릭 시 리뷰 패널 표시 및 데이터 채우기
+        UIManager.reviewPanel.show(store);
+      });
+
+      DOM.storeList.appendChild(item);
+    });
+  },
+  // 업체 등록 폼의 지역 옵션 채우기
+  populateFormRegionOptions() {
+    Object.keys(REGIONS_DATA).forEach((city) => {
+      const group = document.createElement("optgroup");
+      group.label = city;
+      Object.keys(REGIONS_DATA[city].gu).forEach((gu) => {
+        const opt = document.createElement("option");
+        opt.value = gu;
+        opt.textContent = gu;
+        group.appendChild(opt);
+      });
+      DOM.form.region.appendChild(group);
+    });
+  },
+  updateAuthUI(user) {
+    const userMenu = document.querySelector(".user-menu");
+    const registerBtn = document.getElementById("registerStoreBtn");
+
+    if (user) {
+      // 로그인 상태
+      userMenu.innerHTML = `
+              <span style="color:#333; font-weight:bold;">${user.name}님</span>
+              <span onclick="APIService.logout()">로그아웃</span>
+              <span>마이페이지</span>
+          `;
+
+      // 업체 회원이면 등록 버튼 보이기, 아니면 숨기기
+      if (user.role === "BUSINESS") {
+        registerBtn.style.display = "block";
+      } else {
+        registerBtn.style.display = "none";
+      }
+    } else {
+      // 비로그인 상태
+      userMenu.innerHTML = `
+              <span onclick="location.href='login.html'">로그인</span>
+              <span onclick="location.href='signup.html'">회원가입</span>
+          `;
+      registerBtn.style.display = "none"; // 기본적으로 숨김
+    }
+  },
+};
+// [임시] 매장 상세 패널 열기 함수 (더미 데이터 사용)
+function openStoreDetailPanel(storeName) {
+    const detailPanel = document.getElementById('store-detail-panel');
+    const instrumentListEl = document.getElementById('instrument-list');
+    
+    // 1. 패널 보이기
+    detailPanel.style.display = 'flex';
+
+    // 2. 매장 기본 정보 채우기 (이미지의 텍스트 참고)
+    document.getElementById('detail-store-name').innerText = storeName; // 클릭한 매장명
+    document.getElementById('detail-address').innerText = "충남 천안시 동남구 신부동 123-45";
+    document.getElementById('detail-phone').innerText = "010-1234-5678";
+    document.getElementById('detail-hours').innerHTML = `11:00 ~ 21:00 <span class="closed-day">(매주 화요일 휴무)</span>`;
+
+    // 3. 악기 목록 더미 데이터 생성 및 렌더링
+    // 백엔드 연동 전까지 UI 확인용입니다.
+    const dummyInstruments = [
+        { name: "마크 제임스 Standard Classic", price: "518,000원", img: "https://via.placeholder.com/150?text=Guitar1" },
+        { name: "[리퍼] 헥스 기타 H100 LITE", price: "228,650원", img: "https://via.placeholder.com/150?text=Guitar2" },
+        { name: "[리퍼] 헥스 기타 H300 SG/BK", price: "425,000원", img: "https://via.placeholder.com/150?text=Guitar3" },
+        { name: "[입문] 고퍼우드 Gopherwood", price: "471,700원", img: "https://via.placeholder.com/150?text=Guitar4" },
+        { name: "야마하 퍼시피카 112J", price: "380,000원", img: "https://via.placeholder.com/150?text=Guitar5" },
+    ];
+
+    instrumentListEl.innerHTML = ''; // 기존 내용 초기화
+
+    dummyInstruments.forEach(inst => {
+        const itemHtml = `
+            <div class="instrument-item">
+                <div class="instrument-img-box">
+                    <img src="${inst.img}" alt="${inst.name}">
+                </div>
+                <div class="inst-info">
+                    <p class="inst-name">${inst.name}</p>
+                    <p class="inst-price">${inst.price}</p>
+                </div>
+            </div>
+        `;
+        instrumentListEl.insertAdjacentHTML('beforeend', itemHtml);
+    });
+}
+
+// 닫기 버튼 이벤트 연결
+document.getElementById('close-detail-panel').addEventListener('click', () => {
+    document.getElementById('store-detail-panel').style.display = 'none';
+});
+
+// 검색 실행
+async function executeSearch() {
+  MapManager.clearMarkers();
+  DOM.storeList.innerHTML =
+    '<p class="result-placeholder">데이터를 불러오는 중...</p>';
+
+  try {
+    const data = await APIService.fetchStores(
+      AppState.currentRegion,
+      AppState.filterInstruments
+    );
+
+    // 클라이언트 사이드 2차 필터링
+    const results = data.filter((store) => {
+      if (AppState.filterInstruments.length > 0) {
+        return store.instruments.some((inst) =>
+          AppState.filterInstruments.includes(inst)
+        );
+      }
+      return true;
+    });
+
+    // 1. 지도 마커 생성
+    results.forEach((store) =>
+      MapManager.addMarker(store.lat, store.lng, store.name)
+    );
+
+    // 2. 목록 렌더링
+    UIManager.renderStoreList(results);
+  } catch (error) {
+    console.error(error);
+    DOM.storeList.innerHTML =
+      '<p class="result-placeholder" style="color:red;">서버 연결 실패</p>';
+  }
+}
+
+// 지역 선택 핸들러
+function handleRegionSelect(guName, coords) {
+  AppState.currentRegion = guName;
+  DOM.regionBtn.innerHTML = `${guName} <span>▼</span>`;
+  MapManager.move(coords.lat, coords.lng, 7);
+  executeSearch();
+}
+
+// 초기화 및 이벤트 바인딩
+async function initApp() {
+  // 지도 초기화
+  MapManager.init();
+
+  // 로그인 상태 체크 및 UI 업데이트
+  const user = await APIService.checkSession();
+  UIManager.updateAuthUI(user);
+
+  // 네비게이션 바 생성
+  UIManager.createMenu(DOM.navMenu, NAV_MENU_DATA, {
+    wrapperClass: "nav-group",
+    titleClass: "nav-title",
+    listClass: "nav-dropdown",
+    itemClass: "nav-item",
+    onTitleClick: (group) => {
+      DOM.resultTitle.innerText = `${group.title} 전문점 검색`;
+      AppState.filterInstruments = group.items;
+      executeSearch();
+    },
+    onItemClick: (item) => {
+      DOM.resultTitle.innerText = `${item} 전문점 검색`;
+      AppState.filterInstruments = [item];
+      executeSearch();
+    },
+  });
+
+  // 지역 선택 드롭다운 생성
+  const regionListData = Object.keys(REGIONS_DATA).map((city) => ({
+    title: city,
+    items: Object.keys(REGIONS_DATA[city].gu),
+  }));
+
+  UIManager.createMenu(DOM.regionDropdown, regionListData, {
+    titleTag: "button",
+    titleClass: "region-group-btn",
+    listClass: "gu-list-container",
+    itemTag: "button",
+    itemClass: "gu-btn",
+    onTitleClick: (group, el) => {
+      const listDiv = el.nextElementSibling;
+      listDiv.style.display =
+        listDiv.style.display === "block" ? "none" : "block";
+    },
+    onItemClick: (guName, group) => {
+      const coords = REGIONS_DATA[group.title].gu[guName];
+      handleRegionSelect(guName, coords);
+      UIManager.toggleRegionDropdown(false);
+    },
+  });
+
+  // 지역 드롭다운 토글 이벤트
+  DOM.regionBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isVisible = DOM.regionDropdown.style.display === "block";
+    UIManager.toggleRegionDropdown(!isVisible);
+  });
+  window.addEventListener("click", () => UIManager.toggleRegionDropdown(false));
+
+  // 리뷰 패널 이벤트
+  DOM.closeReviewBtn.addEventListener("click", UIManager.reviewPanel.hide);
+
+  // 업체 등록 관련 이벤트
+  UIManager.populateFormRegionOptions();
+  DOM.registerBtn.addEventListener("click", UIManager.modal.show);
+  DOM.modalOverlay.addEventListener("click", UIManager.modal.hide);
+
+  // 닫기 버튼
+  if (DOM.closeModalBtn) DOM.closeModalBtn.onclick = UIManager.modal.hide;
+
+  // 지도에서 위치 선택
+  DOM.form.mapSelectBtn.addEventListener("click", () => {
+    UIManager.modal.hide();
+    alert("지도에서 위치를 클릭해주세요.");
+
+    if (AppState.mapClickListener) {
+      kakao.maps.event.removeListener(
+        AppState.map,
+        "click",
+        AppState.mapClickListener
+      );
+    }
+
+    AppState.mapClickListener = function (mouseEvent) {
+      const latlng = mouseEvent.latLng;
+      DOM.form.lat.value = latlng.getLat().toFixed(6);
+      DOM.form.lng.value = latlng.getLng().toFixed(6);
+
+      UIManager.modal.show();
+      kakao.maps.event.removeListener(
+        AppState.map,
+        "click",
+        AppState.mapClickListener
+      );
+    };
+
+    kakao.maps.event.addListener(
+      AppState.map,
+      "click",
+      AppState.mapClickListener
+    );
+  });
+
+  // 등록 제출
+  DOM.form.submitBtn.addEventListener("click", () => {
+    const name = DOM.form.name.value.trim();
+    const region = DOM.form.region.value;
+    const lat = parseFloat(DOM.form.lat.value);
+    const lng = parseFloat(DOM.form.lng.value);
+    const instStr = DOM.form.instruments.value;
+
+    if (!name || !region || isNaN(lat) || isNaN(lng)) {
+      alert("모든 정보를 입력해주세요.");
+      return;
+    }
+
+    const storeData = {
+      name,
+      region,
+      lat,
+      lng,
+      instruments: instStr
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s !== ""),
+    };
+
+    APIService.registerStore(storeData)
+      .then(() => {
+        alert("등록되었습니다!");
+        UIManager.modal.hide();
+        UIManager.modal.resetForm();
+        executeSearch();
+      })
+      .catch(() => alert("서버 연결 실패"));
+  });
+
+  // 현재 위치로 시작
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => MapManager.move(pos.coords.latitude, pos.coords.longitude, 6),
+      () => alert("현재 위치를 가져올 수 없습니다.")
+    );
+  }
+}
+
+// --- 앱 실행 ---
+// DOM 로드 후 실행
+initApp();

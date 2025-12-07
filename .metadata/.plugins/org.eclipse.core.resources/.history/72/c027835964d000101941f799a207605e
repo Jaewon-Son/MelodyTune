@@ -1,0 +1,146 @@
+package com.melodytune.backend.controller;
+
+import com.melodytune.backend.domain.Member;
+import com.melodytune.backend.dto.*;
+import com.melodytune.backend.repository.MemberRepository;
+import com.melodytune.backend.service.AuthService;
+import com.melodytune.backend.service.StoreService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+import com.melodytune.backend.dto.ReviewRequestDto;
+import com.melodytune.backend.dto.StoreReviewSummaryDto;
+import com.melodytune.backend.service.ReviewService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.net.URI;
+import java.util.List;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/api")
+@RequiredArgsConstructor
+public class ApiController {
+
+    private final AuthService authService;
+    private final StoreService storeService;
+    private final MemberRepository memberRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final ReviewService reviewService;
+
+    // --- [회원 관련 API] ---
+
+    @PostMapping("/auth/signup")
+    public ResponseEntity<String> signup(@RequestBody SignupRequestDto dto) {
+        authService.signup(dto);
+        return ResponseEntity.ok("회원가입 성공");
+    }
+
+    @PostMapping("/auth/login")
+    public ResponseEntity<String> login(@RequestBody LoginRequestDto dto, HttpServletRequest request) {
+        // 1. 회원 조회
+        Optional<Member> memberOp = memberRepository.findByEmail(dto.getEmail());
+        if (memberOp.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("존재하지 않는 이메일입니다.");
+        }
+        Member member = memberOp.get();
+
+        // 2. 비밀번호 검증
+        if (!passwordEncoder.matches(dto.getPassword(), member.getPassword())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("비밀번호가 일치하지 않습니다.");
+        }
+
+        // 3. 세션 생성 (로그인 처리)
+        HttpSession session = request.getSession();
+        session.setAttribute("loginMember", member); // 세션에 사용자 정보 저장
+
+        return ResponseEntity.ok("로그인 성공");
+    }
+
+    @PostMapping("/auth/logout")
+    public ResponseEntity<String> logout(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate(); // 세션 삭제
+        }
+        return ResponseEntity.ok("로그아웃 성공");
+    }
+    // 리뷰 등록
+    @PostMapping("/stores/{storeId}/reviews")
+    public ResponseEntity<Void> createStoreReview(
+            @PathVariable Long storeId,
+            // 인증된 사용자 ID를 가져와야 함 (Spring Security 사용)
+            @RequestParam Long memberId, 
+            @RequestBody ReviewRequestDto request) {
+
+        // 실제 구현 시 memberId는 Principal 객체 등 인증된 정보에서 가져와야 함
+        Long reviewId = reviewService.createReview(storeId, memberId, request);
+
+        // 생성된 리뷰의 상세 정보 URI 반환
+        return ResponseEntity.created(URI.create("/api/reviews/" + reviewId)).build();
+    }
+
+    // 현재 로그인한 사용자 정보 확인 (프론트엔드 UI 제어용)
+    @GetMapping("/auth/me")
+    public ResponseEntity<?> getMyInfo(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("loginMember") == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null); // 비로그인 상태
+        }
+        Member member = (Member) session.getAttribute("loginMember");
+        // 비밀번호 제외하고 필요한 정보만 리턴 (간단히 이름과 역할만)
+        return ResponseEntity.ok().body(new UserInfoDto(member.getName(), member.getRole().name()));
+    }
+    //리뷰 조회
+    @GetMapping("/stores/{storeId}/reviews")
+    public ResponseEntity<StoreReviewSummaryDto> getStoreReviews(@PathVariable Long storeId) {
+        StoreReviewSummaryDto summary = reviewService.getReviewsByStoreId(storeId);
+        return ResponseEntity.ok(summary);
+    }
+    
+    // 간단한 UserInfo DTO (내부 클래스)
+    @lombok.Getter
+    @lombok.AllArgsConstructor
+    static class UserInfoDto {
+        private String name;
+        private String role;
+    }
+
+    // --- [악기점 관련 API] ---
+
+    @PostMapping("/stores")
+    public ResponseEntity<String> registerStore(@RequestBody StoreRequestDto dto, HttpServletRequest request) {
+        // ★ 권한 체크: 로그인 했는지? BUSINESS 인지?
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("loginMember") == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("로그인이 필요합니다.");
+        }
+        
+        Member member = (Member) session.getAttribute("loginMember");
+        if (!member.getRole().name().equals("BUSINESS")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("업체 회원만 등록할 수 있습니다.");
+        }
+
+        storeService.registerStore(dto);
+        return ResponseEntity.ok("업체 등록 성공!");
+    }
+
+    @GetMapping("/stores")
+    public ResponseEntity<List<StoreResponseDto>> searchStores(
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) String instrument
+    ) {
+        return ResponseEntity.ok(storeService.searchStores(region, instrument));
+    }
+    
+    @GetMapping("/stores/{storeId}/detail") 
+    public ResponseEntity<StoreDetailResponseDto> getStoreDetail(@PathVariable Long storeId) {
+        StoreDetailResponseDto response = storeService.getStoreDetail(storeId);
+        return ResponseEntity.ok(response);
+    }
+}

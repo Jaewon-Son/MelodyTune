@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko"xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Melody Tune</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  
+  <script th:src="@{${'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + kakaoKey}}"></script>
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <div class="logo" onclick="location.reload()">Melody Tune</div>
+    <div class="center-group">
+      <button id="headerRegionBtn">지역 선택 ▼</button>
+      <div id="regionDropdown"></div> 
+      <div class="search-box">
+        <input type="text" placeholder="악기나 매장을 검색해보세요.">
+        <button>🔍</button>
+      </div>
+    </div>
+    <div class="user-menu">
+      <span>로그인</span>
+      <span>회원가입</span>
+    </div>
+  </header>
+
+  <nav id="navMenu"></nav>
+
+  <div id="main-container">
+    
+    <div id="floating-panel">
+      <div id="panel-header">
+        <h3 id="resultTitle">검색 결과</h3>
+      </div>
+      <div id="storeList">
+        <p class="result-placeholder">원하는 악기 카테고리를 선택하거나<br>지역을 설정해주세요.</p>
+      </div>
+    </div>
+
+    <div id="review-panel">
+      <div id="review-header">
+        <h3 id="reviewStoreName">악기점 이름</h3>
+        <div class="rating-info">
+            <span id="avgRating" class="avg-rating"></span> 
+            <span id="totalReviews" class="total-reviews"></span>
+        </div>
+        <button id="closeReviewBtn">X</button>
+      </div>
+
+      <div id="ai-summary-area">
+        <div id="aiSummary" class="ai-summary">
+        </div>
+      </div>
+      
+      <div id="reviewList">
+        <p class="review-placeholder">리뷰 목록을 불러오는 중...</p>
+      </div>
+    </div>
+
+    <div id="map"></div>
+    
+    <button id="registerStoreBtn">+ 업체 등록</button>
+
+    <div id="store-detail-panel">
+        <div class="product-section">
+            <h3>판매 중인 악기 <span class="more-link">더보기</span></h3>
+            <div id="instrument-list" class="instrument-list">
+            </div>
+        </div>
+    
+        <div class="info-section">
+            <h3 id="detail-store-name">매장 이름</h3>
+            <ul class="store-info-list">
+                <li>
+                    <span class="label">주소 :</span>
+                    <span id="detail-address">주소 정보 로딩중...</span>
+                </li>
+                <li>
+                    <span class="label">전화 :</span>
+                    <span id="detail-phone"></span>
+                </li>
+                <li>
+                    <span class="label">시간 :</span>
+                    <span id="detail-hours"></span>
+                </li>
+            </ul>
+
+            <div class="store-description-box">
+                <h4>매장 소개</h4>
+                <p id="detail-description">매장 상세 설명이 여기에 표시됩니다.</p>
+            </div>
+            </div>
+        
+        <button id="close-detail-panel">×</button>
+    </div>
+
+  </div> 
+  <div id="modalOverlay"></div>
+  <div id="modalWrap">
+    <h3>신규 업체 등록</h3>
+    <div id="storeForm">
+      <div class="formRow"><label>업체명</label><input id="storeName"></div>
+      <div class="formRow">
+        <label>지역</label>
+        <select id="storeRegion"><option value="">지역 선택</option></select>
+      </div>
+      <div class="formRow">
+        <label>좌표</label>
+        <div style="display:flex; gap:5px;">
+          <input id="storeLat" placeholder="lat" readonly>
+          <input id="storeLng" placeholder="lng" readonly>
+        </div>
+        <button id="selectFromMapBtn" style="margin-top:5px; width:100%; background:#eee; padding:5px;">지도에서 선택</button>
+      </div>
+      <div class="formRow"><label>전문 악기</label><textarea id="storeInstruments" placeholder="예: 어쿠스틱 기타, 일렉 기타"></textarea></div>
+      <button id="submitStore" class="submitBtn">등록하기</button>
+      <button onclick="document.getElementById('modalOverlay').style.display='none';document.getElementById('modalWrap').style.display='none';" style="width:100%; margin-top:5px; padding:5px;">닫기</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

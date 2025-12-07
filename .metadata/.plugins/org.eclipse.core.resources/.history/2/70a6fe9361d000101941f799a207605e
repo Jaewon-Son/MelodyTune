@@ -1,0 +1,212 @@
+package com.melodytune.backend.config;
+
+import com.melodytune.backend.domain.Store;
+import com.melodytune.backend.domain.Member;
+import com.melodytune.backend.domain.Product;
+import com.melodytune.backend.domain.Role;
+import com.melodytune.backend.domain.Review;
+import com.melodytune.backend.repository.StoreRepository;
+import com.melodytune.backend.repository.MemberRepository;
+import com.melodytune.backend.repository.ProductRepository;
+import com.melodytune.backend.repository.ReviewRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+@Configuration
+@RequiredArgsConstructor
+public class DataInitConfig {
+
+    private final StoreRepository storeRepository;
+    private final MemberRepository memberRepository;
+    private final ReviewRepository reviewRepository;
+    private final ProductRepository productRepository;
+
+    @Bean
+    public CommandLineRunner dataLoader() {
+        return args -> {
+            // DB가 비어있을 때만 실행 (Store 기준으로 확인)
+            if (storeRepository.count() == 0) {
+                
+                // 1. 사용자 생성
+                List<Member> members = new ArrayList<>();
+                for (int i = 1; i <= 20; i++) {
+                    members.add(memberRepository.save(Member.builder() 
+                            .name("유저" + i)
+                            .email("user" + i + "@test.com")
+                            .password("{noop}1234") 
+                            .role(Role.USER).build()));
+                }
+                
+                // 2. 업체 생성
+                Store storeCheonan = storeRepository.save(Store.builder()
+                        .name("천안악기랜드")
+                        .region("천안시")
+                        .lat(36.8175).lng(127.1511)
+                        .instruments(Set.of("기타", "피아노", "관현악기", "드럼"))
+                        .averageRating(4.1)
+                        .totalReviews(20L)
+                        .address("충남 천안시 동남구 먹거리10길 23")
+                        .phoneNumber("041-555-1234")
+                        .operatingHours("10:00 ~ 20:00 (연중무휴)")
+                        .description("천안 최대 규모의 종합 악기점입니다.")
+                        .imageUrls(new ArrayList<>(List.of(
+                            "/images/store_land_1.jpg", 
+                            "/images/store_land_2.jpg"
+                        )))
+                        .build());
+                        
+                Store storeKeaton = storeRepository.save(Store.builder()
+                        .name("키튼 기타")
+                        .region("천안시")
+                        .lat(36.8218).lng(127.1598)
+                        .instruments(Set.of("일렉 기타", "어쿠스틱 기타"))
+                        .averageRating(0.0)
+                        .totalReviews(20L)
+                        .address("충남 천안시 동남구 터미널6길 21")
+                        .phoneNumber("041-345-1334")
+                        .operatingHours("11:30 ~ 20:00 (연중무휴)")
+                        .description("기타 전문점")
+                        .imageUrls(new ArrayList<>(List.of(
+                            "/images/store_keaton_1.jpg", 
+                            "/images/store_keaton_2.jpg"
+                        )))
+                        .build());
+
+                Store storeMusic = storeRepository.save(Store.builder()
+                        .name("뮤직센터")
+                        .region("천안시")
+                        .lat(36.8172).lng(127.1514)
+                        .instruments(Set.of("어쿠스틱 기타", "드럼"))
+                        .averageRating(0.0)
+                        .totalReviews(20L)
+                        .address("충남 천안시 동남구 대흥로 334")
+                        .phoneNumber("041-345-1334")
+                        .operatingHours("10:00 ~ 20:00 (연중무휴)")
+                        .description("음악관련 모든 제품을 취급하는 온, 오프라인 쇼핑몰")
+                        .imageUrls(new ArrayList<>(List.of(
+                             "/images/store_music_1.jpg"
+                        )))
+                        .build());
+
+                // 3. 상품 더미데이터 생성
+                productRepository.saveAll(List.of(
+                    Product.builder().store(storeCheonan).name("야마하 퍼시피카 112J").price(380000)
+                            .imageUrl("/images/product_yamaha.jpg").build(),
+                    Product.builder().store(storeCheonan).name("콜트 G250").price(450000)
+                            .imageUrl("/images/product_cort.jpg").build(),
+                    Product.builder().store(storeKeaton).name("빈티지 펜더 텔레캐스터").price(7500000)
+                            .imageUrl("/images/prod_tele.jpg").build()
+                ));
+                
+                System.out.println("✅ 상품 데이터 초기화 완료!");
+                        
+                // 4. 리뷰 더미데이터 생성
+                List<Review> allReviews = new ArrayList<>();
+                String[] cheonanTexts = {
+                        "매장이 정말 넓고 다양한 악기가 있어서 구경하는 재미가 있었어요.",
+                        "사장님이 친절하시고 설명도 자세하게 해주셔서 좋았습니다.",
+                        "주차 공간이 넉넉해서 차 가져가기 너무 편했어요.",
+                        "아이 바이올린 사러 갔는데 가격이 합리적이라 만족합니다.",
+                        "피아노 종류가 많아서 직접 쳐보고 고를 수 있어 좋았네요.",
+                        "수리 맡겼는데 수리가 꼼꼼하고 빨라서 놀랐습니다.",
+                        "직원분이 좀 바빠 보여서 응대가 늦은 건 아쉬워요.",
+                        "악기 관리 상태가 최상급이라 믿고 구매했습니다.",
+                        "기타 줄 교체하러 갔는데 서비스로 피크도 챙겨주셨어요. 센스 굿!",
+                        "가격대는 좀 있지만 확실히 품질은 보장되는 곳입니다.",
+                        "초보자용 기타 추천받았는데 소리가 너무 좋아요. 입문용으로 딱입니다.",
+                        "관현악기 소모품 사러 종종 가는데 항상 재고가 있어서 헛걸음 안 해요.",
+                        "매장이 쾌적하고 깔끔해서 악기 시연해보기가 편했습니다.",
+                        "사장님 인상이 너무 좋으시고 부담 없이 구경하게 해주셨어요.",
+                        "전자 드럼 체험해봤는데 타건감이 실제랑 비슷해서 구매 결정했습니다.",
+                        "주말에 갔더니 사람이 너무 많아서 정신이 좀 없었어요.",
+                        "A/S 보장이 확실해서 여기서 샀어요. 나중에 문제 생겨도 안심될 듯.",
+                        "악기 케이스 종류도 다양해서 예쁜 걸로 잘 골라왔습니다.",
+                        "전반적으로 만족하지만 가격 흥정은 절대 안 해주시네요.",
+                        "천안에서 제일 큰 악기점이라 믿고 갑니다. 단골 예약이에요."
+                };
+                // 평점 데이터가 텍스트보다 적으므로 순환해서 사용합니다.
+                double[] cheonanRatings = {5.0, 5.0, 5.0, 5.0, 5.0, 3.0, 4.5, 4.5};
+                addReviews(allReviews, storeCheonan, members, cheonanTexts, cheonanRatings);
+
+                String[] keatonTexts = {
+                        "사장님이 기타에 진심이신 분입니다. 전문 지식이 엄청나요.",
+                        "기타 셋업 실력은 전국 최고 수준입니다. 버징이 싹 사라졌어요.",
+                        "하이엔드 기타들이 많아서 눈 호강 제대로 하고 왔습니다.",
+                        "사장님이 조금 무뚝뚝하시긴 한데 실력은 진짜 확실합니다.",
+                        "초보자가 가기에는 분위기가 조금 무거울 수 있어요.",
+                        "기타 수리하러 갔는데 새 악기처럼 만들어주셨어요. 감동입니다.",
+                        "가격은 비싸지만 그만큼 돈값을 하는 세팅입니다.",
+                        "원하는 톤을 말씀드렸더니 픽업 교체 추천해주셨는데 결과 대만족!",
+                        "매장이 작지만 알차게 기타들로 꽉 차 있습니다.",
+                        "커스텀 오더 상담받았는데 디테일한 부분까지 신경 써주시네요.",
+                        "그냥 구경만 하러 가기에는 조금 눈치 보여요.",
+                        "빈티지 기타 관리 상태가 예술입니다. 소리가 기가 막혀요.",
+                        "기타 줄 높이 조절이 완벽해서 연주하기가 너무 편해졌어요.",
+                        "사장님만의 고집이 있으셔서 호불호가 갈릴 수도 있겠네요.",
+                        "앰프 테스트도 마음껏 해볼 수 있게 배려해주셨습니다.",
+                        "기타 관련 부품이 없는 게 없어요. 부품 구하러 오기 좋습니다.",
+                        "예약하고 가야 상담받기 편해요. 그냥 가면 많이 기다릴 수 있음.",
+                        "중고 기타 매입도 정직한 가격에 해주셔서 좋았습니다.",
+                        "기타 덕후들의 성지 같은 곳입니다. 이야기 나누다 시간 가는 줄 몰랐네요.",
+                        "확실히 전문점이라 일반 악기점과는 퀄리티가 다릅니다."
+                };
+                double[] keatonRatings = {5.0, 5.0, 4.0, 3.0, 5.0, 4.0};
+                addReviews(allReviews, storeKeaton, members, keatonTexts, keatonRatings);
+
+                String[] musicTexts = {
+                        "드럼 스틱이 급해서 샀는데 종류별로 다 있어서 좋았어요.",
+                        "사장님이 동네 아저씨처럼 푸근하고 정말 친절하십니다.",
+                        "가격이 인터넷이랑 비교해도 차이 안 날 정도로 저렴해요.",
+                        "입문용 통기타 샀는데 사은품을 이것저것 많이 챙겨주셨어요.",
+                        "매장은 작지만 있을 건 다 있습니다. 알짜배기 가게예요.",
+                        "드럼 헤드 교체하는 법도 친절하게 알려주셔서 감사했습니다.",
+                        "가볍게 들러서 소모품 사기에 부담 없는 곳입니다.",
+                        "악기가 엄청 많지는 않지만 초중급자용으로는 충분해요.",
+                        "사장님이 서비스 마인드가 좋으셔서 기분 좋게 구매했습니다.",
+                        "주차가 조금 불편한 게 단점이네요. 골목에 대야 해요.",
+                        "중고 악기도 가끔 나오는데 상태가 꽤 괜찮습니다.",
+                        "우쿨렐레 귀여운 거 득템했어요! 소리도 맑고 좋네요.",
+                        "기타 줄 갈아주시는 속도가 장난 아닙니다. 달인이세요.",
+                        "전문적인 하이엔드 장비는 별로 없어서 아쉬웠어요.",
+                        "학생들이 와서 악기 사기에 딱 좋은 가성비 맛집입니다.",
+                        "사장님이 악기 추천을 강요하지 않으셔서 편하게 골랐어요.",
+                        "오래된 가게라 그런지 단골손님이 많은 것 같더라고요.",
+                        "퍼커션 종류도 몇 개 있어서 구경했는데 소리가 재밌네요.",
+                        "현금 결제하니까 좀 더 깎아주셨어요. 감사합니다!",
+                        "집 근처에 이런 악기점이 있어서 든든합니다."
+                };
+                double[] musicRatings = {5.0, 5.0, 5.0, 5.0, 4.5, 3.0};
+                addReviews(allReviews, storeMusic, members, musicTexts, musicRatings);
+                
+                reviewRepository.saveAll(allReviews);
+
+                System.out.println("초기 더미 데이터 (Store, Member, Review)가 DB에 저장되었습니다!");
+            }
+        };
+    }
+    
+    // ✅ [핵심 수정] 평점 배열 인덱스 오류 방지 로직 적용
+    private void addReviews(List<Review> allReviews, Store store, List<Member> members, String[] texts, double[] ratings) {
+        for (int i = 0; i < texts.length; i++) {
+            // 작성자를 1~20번 멤버 중에서 순환하며 지정
+            Member writer = members.get(i % members.size());
+            
+            // ⭐️ [수정됨] ratings[i % ratings.length] 
+            // 텍스트 개수가 평점 개수보다 많아도, 평점을 처음부터 다시 사용해서 에러를 방지합니다.
+            double ratingValue = ratings[i % ratings.length];
+            
+            allReviews.add(Review.builder()
+                    .store(store)
+                    .member(writer)
+                    .rating(ratingValue)
+                    .content(texts[i])
+                    .build());
+        }
+    }
+}

@@ -1,0 +1,42 @@
+# Build Artifacts (Maven & Java)
+/target/
+/bin/
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.class
+
+!/.mvn/wrapper/maven-wrapper.jar
+
+
+# IDE Files (IntelliJ, STS/Eclipse, VS Code)
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Eclipse / STS
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+
+# VS Code
+.vscode/
+
+
+# 3. Security & Local Data (Critical)
+# API Key, Secret Files
+application-secret.properties
+
+# 로컬 DB, 임시 파일 (H2 등)
+*.mv.db
+*.trace.db
+local-data/

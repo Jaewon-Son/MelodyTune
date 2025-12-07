@@ -1,0 +1,21 @@
+package com.melodytune.backend.controller;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+
+@Controller
+public class MainController {
+
+    // application.properties에서 API Key 값을 주입 받음
+    @Value("${kakao.map.apikey}")
+    private String kakaoApiKey;
+
+    @GetMapping("/main.html")
+    public String mainView(Model model) {
+        // Model 객체에 키 값을 담아 HTML 템플릿으로 전달
+        model.addAttribute("kakaoKey", kakaoApiKey);
+        return "main"; // src/main/resources/templates/main.html 파일을 찾습니다.
+    }
+}

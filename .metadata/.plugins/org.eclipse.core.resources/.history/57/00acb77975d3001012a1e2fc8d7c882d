@@ -1,0 +1,4 @@
+spring.application.name=melodytune
+# application.properties
+spring.profiles.include=secret
+ai.server.url=http://localhost:5000

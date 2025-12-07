@@ -1,0 +1,5 @@
+package com.melodytune.backend.domain;
+
+public class Product {
+
+}
